@@ -2,7 +2,9 @@ package main
 
 import (
 	"Bit2GovSOC/client"
+	"Bit2GovSOC/report"
 	"Bit2GovSOC/util"
+	"fmt"
 	"github.com/rs/zerolog/log"
 )
 
@@ -13,17 +15,11 @@ func main() {
 	}
 
 	c := client.NewClient(config.BitEnpoint, config.BitAPIKey)
+	malware, _ := report.ParsingMalware(c)
+	fmt.Println(malware)
 
-	malwareStatusReportID, err := c.GetReportsListMalwareStatus()
-	if err != nil {
-		log.Fatal().Err(err).Msg("cannot get reports list")
-	}
-	if err := c.DownloadReports(malwareStatusReportID); err != nil {
-		log.Fatal().Err(err).Msg("cannot download report")
-	}
-
-	//enpointStatusReportID, _ := c.GetReportsListEnpointStatus()
-	//fmt.Println(c.GetDownloadLinks(enpointStatusReportID))
-	//networkIncidentsReportID, _ := c.GetReportsListNetworkIncidents()
-	//fmt.Println(c.GetDownloadLinks(networkIncidentsReportID))
+	// enpointStatusReportID, _ := c.GetReportsListEnpointStatus()
+	// fmt.Println(c.GetDownloadLinks(enpointStatusReportID))
+	// networkIncidentsReportID, _ := c.GetReportsListNetworkIncidents()
+	// fmt.Println(c.GetDownloadLinks(networkIncidentsReportID))
 }
