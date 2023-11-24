@@ -304,7 +304,7 @@ func main() {
 		log.Fatal().Err(err).Msg("error encoding to XML")
 	}
 
-	fmt.Println("Calling to " + config.GovSOCEnpoint)
+	fmt.Print("Calling to "+config.GovSOCEnpoint, " - ")
 
 	submitClient := resty.New()
 	rsp, err := submitClient.R().
