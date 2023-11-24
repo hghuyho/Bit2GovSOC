@@ -27,7 +27,7 @@ type Enpoint struct {
 	ScanMode              string `csv:"Scan Mode"`
 }
 
-func ParsingEndpoint(c *client.Client) (*[]Enpoint, error) {
+func ParsingEndpoint(c *client.Client) ([]Enpoint, error) {
 	var records []Enpoint
 	endpointStatusReportID, err := c.GetReportsListEnpointStatus()
 	if err != nil {
@@ -64,5 +64,5 @@ func ParsingEndpoint(c *client.Client) (*[]Enpoint, error) {
 			continue // Skip to the next file on error
 		}
 	}
-	return &records, nil
+	return records, nil
 }

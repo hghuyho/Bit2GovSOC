@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -16,7 +17,7 @@ type EdXMLEnvelope struct {
 	XMLName     xml.Name    `xml:"edXMLEnvelope"`
 	XMLNS       string      `xml:"xmlns:edXML,attr"`
 	EdXMLHeader EdXMLHeader `xml:"edXML:edXMLHeader"`
-	EdXMLBody   string      `xml:"edXML:edXMLBody"`
+	EdXMLBody   EdXMLBody   `xml:"edXML:edXMLBody"`
 }
 
 type EdXMLHeader struct {
@@ -104,13 +105,13 @@ type AVReport struct {
 }
 
 type Malware struct {
-	Machine Machine `xml:"Machine"`
+	MachineMalware []MachineMalware `xml:"Machine"`
 }
 
-type Machine struct {
-	IP   string        `xml:"ip,attr"`
-	Name string        `xml:"name,attr"`
-	Info []MalwareInfo `xml:"MalwareInfo"`
+type MachineMalware struct {
+	IP          string      `xml:"ip,attr"`
+	Name        string      `xml:"name,attr"`
+	MalwareInfo MalwareInfo `xml:"MalwareInfo"`
 }
 
 type MalwareInfo struct {
@@ -122,7 +123,12 @@ type MalwareInfo struct {
 }
 
 type Connection struct {
-	Machine Machine `xml:"Machine"`
+	MachineConnection []MachineConnection `xml:"Machine"`
+}
+type MachineConnection struct {
+	IP             string         `xml:"ip,attr"`
+	Name           string         `xml:"name,attr"`
+	ConnectionInfo ConnectionInfo `xml:"ConnectionInfo"`
 }
 
 type ConnectionInfo struct {
@@ -133,7 +139,13 @@ type ConnectionInfo struct {
 }
 
 type Vulnerability struct {
-	Machine Machine `xml:"Machine"`
+	MachineVulnerability MachineVulnerability `xml:"Machine"`
+}
+
+type MachineVulnerability struct {
+	IP                string            `xml:"ip,attr"`
+	Name              string            `xml:"name,attr"`
+	VulnerabilityInfo VulnerabilityInfo `xml:"VulnerabilityInfo"`
 }
 
 type VulnerabilityInfo struct {
@@ -142,37 +154,38 @@ type VulnerabilityInfo struct {
 }
 
 type OS struct {
-	Machine    Machine `xml:"Machine"`
-	OSName     string  `xml:"OSName"`
-	LastUpdate string  `xml:"LastUpdate"`
+	MachineOS  MachineOS `xml:"Machine"`
+	OSName     string    `xml:"OSName"`
+	LastUpdate string    `xml:"LastUpdate"`
 }
-
+type MachineOS struct {
+	IP   string `xml:"ip,attr"`
+	Name string `xml:"name,attr"`
+}
 type Update struct {
 	NumberMachineNotUpdateOn15Day string `xml:"NumberMachineNotUpdateOn15Day"`
 }
 
 type QualityFeature struct {
-	Machine        Machine `xml:"Machine"`
-	AutoProtect    string  `xml:"AutoProtect"`
-	EnableFirewall string  `xml:"EnableFirewall"`
+	MachineQualityFeature []MachineQualityFeature `xml:"Machine"`
+}
+
+type MachineQualityFeature struct {
+	IP             string `xml:"ip,attr"`
+	Name           string `xml:"name,attr"`
+	AutoProtect    string `xml:"AutoProtect"`
+	EnableFirewall string `xml:"EnableFirewall"`
 }
 
 func main() {
+	currentTime := time.Now().Format("20060102150405")
+
 	config, err := util.LoadConfig(".")
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot load config")
 	}
 
 	c := client.NewClient(config.BitEnpoint, config.BitAPIKey)
-
-	malware, _ := report.ParsingMalware(c)
-	fmt.Println(malware)
-
-	endpoint, _ := report.ParsingEndpoint(c)
-	fmt.Println(endpoint)
-
-	network, _ := report.ParsingNetwork(c)
-	fmt.Println(network)
 
 	// Create an example instance of EDXMLEnvelope
 	e := EdXMLEnvelope{
@@ -227,6 +240,47 @@ func main() {
 			},
 		},
 	}
+
+	e.EdXMLBody.AVReport = AVReport{
+		Name:     "Anti-Virus Name",
+		Datetime: strconv.FormatInt(time.Now().Unix(), 10),
+	}
+
+	malwares, _ := report.ParsingMalware(c)
+	for _, malware := range malwares {
+		e.EdXMLBody.AVReport.Malware.MachineMalware = append(e.EdXMLBody.AVReport.Malware.MachineMalware, MachineMalware{
+			Name: malware.EndpointName,
+			MalwareInfo: MalwareInfo{
+				MalwareName:     malware.MalwareName,
+				MalwareType:     malware.ThreatType,
+				MalwareBehavior: malware.ThreatType,
+				TypeOfDevice:    malware.FilePath,
+				NumberFile:      "1",
+			},
+		})
+	}
+	networks, _ := report.ParsingNetwork(c)
+	for _, network := range networks {
+		e.EdXMLBody.AVReport.Connection.MachineConnection = append(e.EdXMLBody.AVReport.Connection.MachineConnection, MachineConnection{
+			Name: network.EndpointName,
+			IP:   network.EndpointIP,
+			ConnectionInfo: ConnectionInfo{
+				Program:  network.DetectionName,
+				TargetIP: network.TargetedIP,
+			},
+		})
+	}
+	endpoints, _ := report.ParsingEndpoint(c)
+	for _, endpoint := range endpoints {
+		e.EdXMLBody.AVReport.QualityFeature.MachineQualityFeature = append(e.EdXMLBody.AVReport.QualityFeature.MachineQualityFeature, MachineQualityFeature{
+			Name:           endpoint.EndpointName,
+			IP:             endpoint.IP,
+			AutoProtect:    endpoint.Antimalware,
+			EnableFirewall: endpoint.Firewall,
+		})
+
+	}
+
 	// Encode the struct to XML
 	xmlData, err := xml.MarshalIndent(e, "", "    ")
 	if err != nil {
@@ -234,7 +288,6 @@ func main() {
 		return
 	}
 	// Generate a filename with the current datetime
-	currentTime := time.Now().Format("20060102150405")
 	filename := fmt.Sprintf("./output/edxml-%s.xml", currentTime)
 	// Create the output directory and any necessary parent directories
 	outputDir := filepath.Dir(filename)

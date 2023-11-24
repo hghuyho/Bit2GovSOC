@@ -27,7 +27,7 @@ type Network struct {
 	LastBlocked     string `csv:"Last Blocked"`
 }
 
-func ParsingNetwork(c *client.Client) (*[]Network, error) {
+func ParsingNetwork(c *client.Client) ([]Network, error) {
 	var records []Network
 	networkIncidentsReportID, err := c.GetReportsListNetworkIncidents()
 	if err != nil {
@@ -64,5 +64,5 @@ func ParsingNetwork(c *client.Client) (*[]Network, error) {
 			continue // Skip to the next file on error
 		}
 	}
-	return &records, nil
+	return records, nil
 }
