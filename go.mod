@@ -8,6 +8,7 @@ require (
 )
 
 require (
+	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-resty/resty/v2 v2.10.0 // indirect
 	github.com/gocarina/gocsv v0.0.0-20231116093920-b87c2d0e983a // indirect

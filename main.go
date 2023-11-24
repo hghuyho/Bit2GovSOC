@@ -15,11 +15,14 @@ func main() {
 	}
 
 	c := client.NewClient(config.BitEnpoint, config.BitAPIKey)
+
 	malware, _ := report.ParsingMalware(c)
 	fmt.Println(malware)
 
-	// enpointStatusReportID, _ := c.GetReportsListEnpointStatus()
-	// fmt.Println(c.GetDownloadLinks(enpointStatusReportID))
-	// networkIncidentsReportID, _ := c.GetReportsListNetworkIncidents()
-	// fmt.Println(c.GetDownloadLinks(networkIncidentsReportID))
+	endpoint, _ := report.ParsingEndpoint(c)
+	fmt.Println(endpoint)
+
+	network, _ := report.ParsingNetwork(c)
+	fmt.Println(network)
+
 }
