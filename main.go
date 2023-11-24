@@ -6,6 +6,7 @@ import (
 	"Bit2GovSOC/util"
 	"encoding/xml"
 	"fmt"
+	"github.com/go-resty/resty/v2"
 	"github.com/rs/zerolog/log"
 	"os"
 	"path/filepath"
@@ -178,16 +179,21 @@ type MachineQualityFeature struct {
 }
 
 func main() {
+	// Prompt user to press Enter to start
+	fmt.Print("Press Enter to start...")
+	fmt.Scanln()
+
 	currentTime := time.Now().Format("20060102150405")
 
+	fmt.Println("Loading config...")
 	config, err := util.LoadConfig(".")
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot load config")
 	}
 
-	c := client.NewClient(config.BitEnpoint, config.BitAPIKey)
+	c := client.NewBitClient(config.BitEnpoint, config.BitAPIKey)
 
-	// Create an example instance of EDXMLEnvelope
+	// Create an instance of EDXMLEnvelope
 	e := EdXMLEnvelope{
 		XMLNS: "http://www.mic.gov.vn/TBT/QCVN_102_2016",
 		EdXMLHeader: EdXMLHeader{
@@ -246,7 +252,11 @@ func main() {
 		Datetime: strconv.FormatInt(time.Now().Unix(), 10),
 	}
 
-	malwares, _ := report.ParsingMalware(c)
+	fmt.Println("Parsing Malware Status report...")
+	malwares, err := report.ParsingMalware(c)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot parsing malware")
+	}
 	for _, malware := range malwares {
 		e.EdXMLBody.AVReport.Malware.MachineMalware = append(e.EdXMLBody.AVReport.Malware.MachineMalware, MachineMalware{
 			Name: malware.EndpointName,
@@ -259,7 +269,11 @@ func main() {
 			},
 		})
 	}
-	networks, _ := report.ParsingNetwork(c)
+	fmt.Println("Parsing Network Incidents report...")
+	networks, err := report.ParsingNetwork(c)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot parsing network")
+	}
 	for _, network := range networks {
 		e.EdXMLBody.AVReport.Connection.MachineConnection = append(e.EdXMLBody.AVReport.Connection.MachineConnection, MachineConnection{
 			Name: network.EndpointName,
@@ -270,7 +284,11 @@ func main() {
 			},
 		})
 	}
-	endpoints, _ := report.ParsingEndpoint(c)
+	fmt.Println("Parsing Endpoint Modules Status report...")
+	endpoints, err := report.ParsingEndpoint(c)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot parsing endpoint")
+	}
 	for _, endpoint := range endpoints {
 		e.EdXMLBody.AVReport.QualityFeature.MachineQualityFeature = append(e.EdXMLBody.AVReport.QualityFeature.MachineQualityFeature, MachineQualityFeature{
 			Name:           endpoint.EndpointName,
@@ -280,26 +298,39 @@ func main() {
 		})
 
 	}
-
 	// Encode the struct to XML
 	xmlData, err := xml.MarshalIndent(e, "", "    ")
 	if err != nil {
-		fmt.Println("Error encoding to XML:", err)
-		return
+		log.Fatal().Err(err).Msg("error encoding to XML")
 	}
+
+	fmt.Println("Calling to " + config.GovSOCEnpoint)
+
+	submitClient := resty.New()
+	rsp, err := submitClient.R().
+		SetHeader("Content-Type", "text/xml").
+		SetBody(xmlData).
+		Post(config.GovSOCEnpoint)
+
+	if err != nil {
+		log.Fatal().Err(err).Msg("submit reports failed")
+	}
+	fmt.Println("Response status: " + rsp.Status())
+
 	// Generate a filename with the current datetime
 	filename := fmt.Sprintf("./output/edxml-%s.xml", currentTime)
 	// Create the output directory and any necessary parent directories
 	outputDir := filepath.Dir(filename)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		fmt.Println("Error creating output directory:", err)
-		return
+		log.Fatal().Err(err).Msg("error creating output directory")
 	}
 	// Save the XML data to a file
 	err = os.WriteFile(filename, xmlData, 0644)
 	if err != nil {
-		fmt.Println("Error saving XML to file:", err)
-		return
+		log.Fatal().Err(err).Msg("error saving XML to file")
 	}
 	fmt.Printf("XML data written to %s\n", filename)
+	// Wait for Enter key before closing
+	fmt.Println("Press Enter to exit...")
+	fmt.Scanln()
 }

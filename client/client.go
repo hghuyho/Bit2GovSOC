@@ -23,7 +23,7 @@ type Resp struct {
 	Msg string
 }
 
-func NewClient(host string, secret string) *Client {
+func NewBitClient(host string, secret string) *Client {
 	c := resty.New().
 		SetBaseURL(host).
 		SetHeader("Content-Type", "application/json")
