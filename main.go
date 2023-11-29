@@ -183,8 +183,9 @@ func main() {
 	fmt.Print("Press Enter to start...")
 	fmt.Scanln()
 
-	currentTime := time.Now().Format("20060102150405")
-
+	currentTime := time.Now()
+	currentTimeFormatFileName := currentTime.Format("20060102150405")
+	currentTimeFormatHumanReadable := currentTime.Format("02-01-2006 15:04:05")
 	fmt.Println("Loading config...")
 	config, err := util.LoadConfig(".")
 	if err != nil {
@@ -207,7 +208,7 @@ func main() {
 					Fax:       "",
 					Website:   config.OrganWebsite,
 				},
-				Subject: "Test Report",
+				Subject: fmt.Sprintf("Anti Virus Report on %s", currentTimeFormatHumanReadable),
 			},
 			Signature: Signature{
 				XMLNS: "http://www.w3.org/2000/09/xmldsig#",
@@ -248,7 +249,7 @@ func main() {
 	}
 
 	e.EdXMLBody.AVReport = AVReport{
-		Name:     "Anti-Virus Name",
+		Name:     "Bitdefender",
 		Datetime: strconv.FormatInt(time.Now().Unix(), 10),
 	}
 
@@ -318,7 +319,7 @@ func main() {
 	fmt.Println("Response status: " + rsp.Status())
 
 	// Generate a filename with the current datetime
-	filename := fmt.Sprintf("./output/edxml-%s.xml", currentTime)
+	filename := fmt.Sprintf("./output/edxml-%s.xml", currentTimeFormatFileName)
 	// Create the output directory and any necessary parent directories
 	outputDir := filepath.Dir(filename)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
