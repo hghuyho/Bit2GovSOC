@@ -19,10 +19,25 @@ type ReportsListResp struct {
 	} `json:"result"`
 }
 
-func (c *Client) GetReportsListEnpointStatus() (string, error) {
+func (c *Client) GetReportsListEnpointModulesStatus() (string, error) {
 	errMsg := "get reports list failed: : %w"
 	requestBody := `{"params": {"type": 7}, "jsonrpc": "2.0","method": "getReportsList","id": "787b5e36-89a8-4353-88b9-6b7a32e9c87f"}`
 
+	res, err := c.R().SetBody(requestBody).
+		SetResult(&ReportsListResp{}).
+		Post(ReportsRoute)
+	if err != nil {
+		return "", fmt.Errorf(errMsg, err)
+	}
+	if res.Result().(*ReportsListResp).Result.Total > 1 {
+		return "", fmt.Errorf(errMsg, err)
+	}
+	return res.Result().(*ReportsListResp).Result.Items[0].ID, nil
+}
+
+func (c *Client) GetReportsListEndpointProtectionStatus() (string, error) {
+	errMsg := "get reports list failed: : %w"
+	requestBody := `{"params": {"type": 8}, "jsonrpc": "2.0","method": "getReportsList","id": "787b5e36-89a8-4353-88b9-6b7a32e9c87f"}`
 	res, err := c.R().SetBody(requestBody).
 		SetResult(&ReportsListResp{}).
 		Post(ReportsRoute)

@@ -155,13 +155,13 @@ type VulnerabilityInfo struct {
 }
 
 type OS struct {
-	MachineOS  MachineOS `xml:"Machine"`
-	OSName     string    `xml:"OSName"`
-	LastUpdate string    `xml:"LastUpdate"`
+	MachineOS []MachineOS `xml:"Machine"`
 }
 type MachineOS struct {
-	IP   string `xml:"ip,attr"`
-	Name string `xml:"name,attr"`
+	IP         string `xml:"ip,attr"`
+	Name       string `xml:"name,attr"`
+	OSName     string `xml:"OSName"`
+	LastUpdate string `xml:"LastUpdate"`
 }
 type Update struct {
 	NumberMachineNotUpdateOn15Day string `xml:"NumberMachineNotUpdateOn15Day"`
@@ -253,7 +253,7 @@ func main() {
 		Datetime: strconv.FormatInt(time.Now().Unix(), 10),
 	}
 
-	fmt.Println("Parsing Malware Status report...")
+	fmt.Println("Downloading and parsing Malware Status report...")
 	malwares, err := report.ParsingMalware(c)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot parsing malware")
@@ -270,7 +270,7 @@ func main() {
 			},
 		})
 	}
-	fmt.Println("Parsing Network Incidents report...")
+	fmt.Println("Downloading and parsing Network Incidents report...")
 	networks, err := report.ParsingNetwork(c)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot parsing network")
@@ -285,12 +285,12 @@ func main() {
 			},
 		})
 	}
-	fmt.Println("Parsing Endpoint Modules Status report...")
-	endpoints, err := report.ParsingEndpoint(c)
+	fmt.Println("Downloading and parsing Endpoint Modules Status report...")
+	endpointModules, err := report.ParsingEnpointModulesStatus(c)
 	if err != nil {
-		log.Fatal().Err(err).Msg("cannot parsing endpoint")
+		log.Fatal().Err(err).Msg("cannot parsing endpoint modules status report")
 	}
-	for _, endpoint := range endpoints {
+	for _, endpoint := range endpointModules {
 		e.EdXMLBody.AVReport.QualityFeature.MachineQualityFeature = append(e.EdXMLBody.AVReport.QualityFeature.MachineQualityFeature, MachineQualityFeature{
 			Name:           endpoint.EndpointName,
 			IP:             endpoint.IP,
@@ -299,6 +299,21 @@ func main() {
 		})
 
 	}
+	fmt.Println("Downloading and parsing Endpoint Protection Status report...")
+	endpointProtections, err := report.ParsingEnpointProtectionStatus(c)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot parsing endpoint protection status report")
+	}
+	for _, endpoint := range endpointProtections {
+		e.EdXMLBody.AVReport.OS.MachineOS = append(e.EdXMLBody.AVReport.OS.MachineOS, MachineOS{
+			Name:       endpoint.EndpointName,
+			IP:         endpoint.IP,
+			OSName:     "Windows 10 Pro",
+			LastUpdate: endpoint.LastUpdate,
+		})
+
+	}
+
 	// Encode the struct to XML
 	xmlData, err := xml.MarshalIndent(e, "", "    ")
 	if err != nil {
