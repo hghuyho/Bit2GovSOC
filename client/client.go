@@ -13,6 +13,7 @@ const (
 
 const (
 	ReportsRoute = "/api/v1.0/jsonrpc/reports"
+	NetworkRoute = "/api/v1.0/jsonrpc/network"
 )
 
 type Client struct {

@@ -180,8 +180,9 @@ type MachineQualityFeature struct {
 
 func main() {
 	// Prompt user to press Enter to start
-	fmt.Print("Press Enter to start...")
-	fmt.Scanln()
+	//fmt.Print("Press Enter to start...")
+	//fmt.Scanln()
+	time.Sleep(2 * time.Second)
 
 	currentTime := time.Now()
 	currentTimeFormatFileName := currentTime.Format("20060102150405")
@@ -299,19 +300,24 @@ func main() {
 		})
 
 	}
-	fmt.Println("Downloading and parsing Endpoint Protection Status report...")
-	endpointProtections, err := report.ParsingEnpointProtectionStatus(c)
+	fmt.Println("Downloading and parsing Network Inventory Items...")
+	networkInventoryItems, err := c.GetNetworkInventoryItems(1)
 	if err != nil {
-		log.Fatal().Err(err).Msg("cannot parsing endpoint protection status report")
+		log.Fatal().Err(err).Msg("cannot get network inventory items")
 	}
-	for _, endpoint := range endpointProtections {
-		e.EdXMLBody.AVReport.OS.MachineOS = append(e.EdXMLBody.AVReport.OS.MachineOS, MachineOS{
-			Name:       endpoint.EndpointName,
-			IP:         endpoint.IP,
-			OSName:     "Windows 10 Pro",
-			LastUpdate: endpoint.LastUpdate,
-		})
-
+	for i := 1; i <= networkInventoryItems.Result.PagesCount; i++ {
+		networkInventoryItems, err = c.GetNetworkInventoryItems(i)
+		if err != nil {
+			log.Fatal().Err(err).Msg("cannot get network inventory items")
+		}
+		for _, endpoint := range networkInventoryItems.Result.Items {
+			e.EdXMLBody.AVReport.OS.MachineOS = append(e.EdXMLBody.AVReport.OS.MachineOS, MachineOS{
+				Name:       endpoint.Name,
+				IP:         endpoint.Details.IP,
+				OSName:     endpoint.Details.OperatingSystemVersion,
+				LastUpdate: endpoint.LastSuccessfulScan.Date,
+			})
+		}
 	}
 
 	// Encode the struct to XML
@@ -347,6 +353,7 @@ func main() {
 	}
 	fmt.Printf("XML data written to %s\n", filename)
 	// Wait for Enter key before closing
-	fmt.Println("Press Enter to exit...")
-	fmt.Scanln()
+	//fmt.Println("Press Enter to exit...")
+	//fmt.Scanln()
+	time.Sleep(2 * time.Second)
 }
