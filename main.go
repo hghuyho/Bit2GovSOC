@@ -7,6 +7,8 @@ import (
 	"encoding/xml"
 	"fmt"
 	"github.com/go-resty/resty/v2"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"os"
 	"path/filepath"
@@ -183,19 +185,46 @@ func main() {
 	//fmt.Print("Press Enter to start...")
 	//fmt.Scanln()
 	time.Sleep(2 * time.Second)
-
 	currentTime := time.Now()
 	currentTimeFormatFileName := currentTime.Format("20060102150405")
 	currentTimeFormatHumanReadable := currentTime.Format("02-01-2006 15:04:05")
+
+	// Generate a filename with the current datetime
+	filenameLog := fmt.Sprintf("./log/%s.log", currentTimeFormatFileName)
+	// Create the output directory and any necessary parent directories
+	outputDirLog := filepath.Dir(filenameLog)
+	if err := os.MkdirAll(outputDirLog, 0755); err != nil {
+		log.Fatal().Err(err).Msg("error creating log directory")
+	}
+
+	// LogFile
+	fileLog, err := os.OpenFile(
+		filenameLog,
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0664,
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("error creating log file")
+	}
+	defer fileLog.Close()
+
+	multi := zerolog.MultiLevelWriter(zerolog.ConsoleWriter{Out: os.Stdout}, fileLog)
+	logger := zerolog.New(multi).With().Timestamp().Logger()
+	log.Logger = logger
+
+	// Load config
 	fmt.Println("Loading config...")
 	config, err := util.LoadConfig(".")
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot load config")
 	}
+	log.Info().Msg("Load config successfully")
+	c, err := client.NewBitClient(config.BitEnpoint, config.BitAPIKey, config.BotToken)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot create bitdefender client")
+	}
 
-	c := client.NewBitClient(config.BitEnpoint, config.BitAPIKey)
-
-	// Create an instance of EDXMLEnvelope
+	//Create an instance of EDXMLEnvelope
 	e := EdXMLEnvelope{
 		XMLNS: "http://www.mic.gov.vn/TBT/QCVN_102_2016",
 		EdXMLHeader: EdXMLHeader{
@@ -254,6 +283,7 @@ func main() {
 		Datetime: strconv.FormatInt(time.Now().Unix(), 10),
 	}
 
+	// Malware Status report
 	fmt.Println("Downloading and parsing Malware Status report...")
 	malwares, err := report.ParsingMalware(c)
 	if err != nil {
@@ -271,6 +301,9 @@ func main() {
 			},
 		})
 	}
+	log.Info().Msg("Download and parsing Malware Status report successfully")
+
+	// Network Incidents report
 	fmt.Println("Downloading and parsing Network Incidents report...")
 	networks, err := report.ParsingNetwork(c)
 	if err != nil {
@@ -286,6 +319,9 @@ func main() {
 			},
 		})
 	}
+	log.Info().Msg("Download and parsing Network Incidents report successfully")
+
+	// Endpoint Modules Status report
 	fmt.Println("Downloading and parsing Endpoint Modules Status report...")
 	endpointModules, err := report.ParsingEnpointModulesStatus(c)
 	if err != nil {
@@ -300,6 +336,9 @@ func main() {
 		})
 
 	}
+	log.Info().Msg("Download and parsing Endpoint Modules Status report successfully")
+
+	// Network Inventory Items
 	fmt.Println("Downloading and parsing Network Inventory Items...")
 	networkInventoryItems, err := c.GetNetworkInventoryItems(1)
 	if err != nil {
@@ -319,6 +358,7 @@ func main() {
 			})
 		}
 	}
+	log.Info().Msg("Download and parsing Network Inventory Items successfully")
 
 	// Encode the struct to XML
 	xmlData, err := xml.MarshalIndent(e, "", "    ")
@@ -326,34 +366,50 @@ func main() {
 		log.Fatal().Err(err).Msg("error encoding to XML")
 	}
 
+	// Submit report to NCSC
 	fmt.Print("Calling to "+config.GovSOCEnpoint, " - ")
-
 	submitClient := resty.New()
 	rsp, err := submitClient.R().
 		SetHeader("Content-Type", "text/xml").
 		SetBody(xmlData).
 		Post(config.GovSOCEnpoint)
-
 	if err != nil {
 		log.Fatal().Err(err).Msg("submit reports failed")
 	}
 	fmt.Println("Response status: " + rsp.Status())
+	log.Info().Msg(fmt.Sprintf("Submit reports to NCSC. Response status: %s", rsp.Status()))
+
+	// send message to telegram
+	msg := tgbotapi.MessageConfig{}
+	if rsp.StatusCode() != 200 {
+		msg = tgbotapi.NewMessage(config.GroupID, fmt.Sprintf("Sent report to NCSC failed. Response status: %s", rsp.Status()))
+		log.Info().Msg(fmt.Sprintf("Sent report to NCSC failed. Response status: %s", rsp.Status()))
+	} else {
+		msg = tgbotapi.NewMessage(config.GroupID, fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status()))
+		log.Info().Msg(fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status()))
+	}
+	_, err = c.BotAPI.Send(msg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot send message to telegram")
+	}
 
 	// Generate a filename with the current datetime
-	filename := fmt.Sprintf("./output/edxml-%s.xml", currentTimeFormatFileName)
+	filenameXML := fmt.Sprintf("./edxml/edxml-%s.xml", currentTimeFormatFileName)
 	// Create the output directory and any necessary parent directories
-	outputDir := filepath.Dir(filename)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	outputDirXML := filepath.Dir(filenameXML)
+	if err := os.MkdirAll(outputDirXML, 0755); err != nil {
 		log.Fatal().Err(err).Msg("error creating output directory")
 	}
 	// Save the XML data to a file
-	err = os.WriteFile(filename, xmlData, 0644)
+	err = os.WriteFile(filenameXML, xmlData, 0644)
 	if err != nil {
 		log.Fatal().Err(err).Msg("error saving XML to file")
 	}
-	fmt.Printf("XML data written to %s\n", filename)
+	log.Info().Msg(fmt.Sprintf("XML data written to %s", filenameXML))
+	fmt.Printf("XML data written to %s\n", filenameXML)
+
 	// Wait for Enter key before closing
 	//fmt.Println("Press Enter to exit...")
 	//fmt.Scanln()
-	time.Sleep(2 * time.Second)
+	time.Sleep(3 * time.Second)
 }

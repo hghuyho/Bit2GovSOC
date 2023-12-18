@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"github.com/go-resty/resty/v2"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 const (
@@ -18,13 +19,15 @@ const (
 
 type Client struct {
 	*resty.Client
+	*tgbotapi.BotAPI
 }
 
 type Resp struct {
 	Msg string
 }
 
-func NewBitClient(host string, secret string) *Client {
+func NewBitClient(host string, secret string, botToken string) (*Client, error) {
+	errMsg := "create bit client failed: : %w"
 	c := resty.New().
 		SetBaseURL(host).
 		SetHeader("Content-Type", "application/json")
@@ -50,5 +53,9 @@ func NewBitClient(host string, secret string) *Client {
 		}
 		return nil
 	})
-	return &Client{c}
+	bot, err := tgbotapi.NewBotAPI(botToken)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{c, bot}, nil
 }
