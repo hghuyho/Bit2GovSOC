@@ -27,7 +27,6 @@ type Resp struct {
 }
 
 func NewBitClient(host string, secret string, botToken string) (*Client, error) {
-	errMsg := "create bit client failed: : %w"
 	c := resty.New().
 		SetBaseURL(host).
 		SetHeader("Content-Type", "application/json")
