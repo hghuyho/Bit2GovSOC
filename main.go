@@ -377,21 +377,6 @@ func main() {
 		log.Fatal().Err(err).Msg("submit reports failed")
 	}
 	fmt.Println("Response status: " + rsp.Status())
-	log.Info().Msg(fmt.Sprintf("Submit reports to NCSC. Response status: %s", rsp.Status()))
-
-	// send message to telegram
-	msg := tgbotapi.MessageConfig{}
-	if rsp.StatusCode() != 200 {
-		msg = tgbotapi.NewMessage(config.GroupID, fmt.Sprintf("Sent report to NCSC failed. Response status: %s", rsp.Status()))
-		log.Info().Msg(fmt.Sprintf("Sent report to NCSC failed. Response status: %s", rsp.Status()))
-	} else {
-		msg = tgbotapi.NewMessage(config.GroupID, fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status()))
-		log.Info().Msg(fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status()))
-	}
-	_, err = c.BotAPI.Send(msg)
-	if err != nil {
-		log.Fatal().Err(err).Msg("cannot send message to telegram")
-	}
 
 	// Generate a filename with the current datetime
 	filenameXML := fmt.Sprintf("./edxml/edxml-%s.xml", currentTimeFormatFileName)
@@ -407,6 +392,27 @@ func main() {
 	}
 	log.Info().Msg(fmt.Sprintf("XML data written to %s", filenameXML))
 	fmt.Printf("XML data written to %s\n", filenameXML)
+
+	// send message to telegram
+	//tgbotFilePath := tgbotapi.FilePath(filenameLog)
+	//tgbotFile := tgbotapi.NewDocument(config.GroupID, tgbotFilePath)
+	msg := tgbotapi.MessageConfig{}
+	msg.ChatID = config.GroupID
+
+	if rsp.StatusCode() != 200 {
+		//tgbotFile.Caption = fmt.Sprintf("Sent report to NCSC failed. Response status: %s", rsp.Status())
+		msg.Text = fmt.Sprintf("❌📣 Sent report to NCSC failed:\n- Response status: %s\n- Logfile: %s", rsp.Status(), filenameLog)
+		log.Info().Msg(fmt.Sprintf("Sent report to NCSC failed. Response status: %s", rsp.Status()))
+	} else {
+		//tgbotFile.Caption = fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status())
+		msg.Text = fmt.Sprintf("✔️📣 Sent report to NCSC successful:\n- Response status: %s\n- Logfile: %s\"", rsp.Status(), filenameLog)
+		log.Info().Msg(fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status()))
+	}
+	//_, err = c.BotAPI.Send(tgbotFile)
+	_, err = c.BotAPI.Send(msg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot send message to telegram")
+	}
 
 	// Wait for Enter key before closing
 	//fmt.Println("Press Enter to exit...")
