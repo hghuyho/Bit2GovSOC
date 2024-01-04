@@ -213,14 +213,13 @@ func main() {
 	log.Logger = logger
 
 	// Load config
-	fmt.Println("Loading config...")
 	config, err := util.LoadConfig(".")
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot load config")
 	}
 	// Override value from an Environment Variable. Set your own!
 	config.BotToken = os.Getenv("TG_BOT_TOKEN")
-	log.Info().Msg("Load config successfully")
+	log.Info().Msg("Configuration successfully loaded.")
 	c, err := client.NewBitClient(config.BitEnpoint, config.BitAPIKey, config.BotToken)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot create bitdefender client")
@@ -286,7 +285,7 @@ func main() {
 	}
 
 	// Malware Status report
-	fmt.Println("Downloading and parsing Malware Status report...")
+	log.Info().Msg("Downloading and parsing Malware Status Report...")
 	malwares, err := report.ParsingMalware(c)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot parsing malware")
@@ -303,10 +302,10 @@ func main() {
 			},
 		})
 	}
-	log.Info().Msg("Download and parsing Malware Status report successfully")
+	log.Info().Msg("Malware Status Report downloaded and parsed successfully.")
 
 	// Network Incidents report
-	fmt.Println("Downloading and parsing Network Incidents report...")
+	log.Info().Msg("Downloading and parsing Network Incidents Report...")
 	networks, err := report.ParsingNetwork(c)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot parsing network")
@@ -321,10 +320,10 @@ func main() {
 			},
 		})
 	}
-	log.Info().Msg("Download and parsing Network Incidents report successfully")
+	log.Info().Msg("Network Incidents Report downloaded and parsed successfully.")
 
 	// Endpoint Modules Status report
-	fmt.Println("Downloading and parsing Endpoint Modules Status report...")
+	log.Info().Msg("Downloading and parsing Endpoint Modules Status Report...")
 	endpointModules, err := report.ParsingEnpointModulesStatus(c)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot parsing endpoint modules status report")
@@ -338,10 +337,10 @@ func main() {
 		})
 
 	}
-	log.Info().Msg("Download and parsing Endpoint Modules Status report successfully")
+	log.Info().Msg("Endpoint Modules Status Report downloaded and parsed successfully.")
 
 	// Network Inventory Items
-	fmt.Println("Downloading and parsing Network Inventory Items...")
+	log.Info().Msg("Calling and parsing Network Inventory Items (Public API)...")
 	networkInventoryItems, err := c.GetNetworkInventoryItems(1)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot get network inventory items")
@@ -360,7 +359,7 @@ func main() {
 			})
 		}
 	}
-	log.Info().Msg("Download and parsing Network Inventory Items successfully")
+	log.Info().Msg("Network Inventory Items obtained through Public API and parsed successfully.")
 
 	// Encode the struct to XML
 	xmlData, err := xml.MarshalIndent(e, "", "    ")
@@ -368,18 +367,37 @@ func main() {
 		log.Fatal().Err(err).Msg("error encoding to XML")
 	}
 
+	// send message to telegram
+	msg := tgbotapi.MessageConfig{}
+	msg.ChatID = config.GroupID
+
 	// Submit report to NCSC
-	fmt.Print("Calling to "+config.GovSOCEnpoint, " - ")
+	log.Info().Msg(fmt.Sprintf("Calling to %s", config.GovSOCEnpoint))
 	submitClient := resty.New()
 	rsp, err := submitClient.R().
 		SetHeader("Content-Type", "text/xml").
 		SetBody(xmlData).
 		Post(config.GovSOCEnpoint)
 	if err != nil {
+		msg.Text = fmt.Sprintf("❌📣 Report submission to NCSC failed:\n- Logfile: %s", currentTimeFormatFileName)
+		_, err = c.BotAPI.Send(msg)
+		if err != nil {
+			log.Fatal().Err(err).Msg("cannot send message to telegram")
+		}
 		log.Fatal().Err(err).Msg("submit reports failed")
 	}
-	fmt.Println("Response status: " + rsp.Status())
 
+	if rsp.StatusCode() != 200 {
+		msg.Text = fmt.Sprintf("❌📣 Report submission to NCSC failed:\n- Status: %s\n- Logfile: %s", rsp.Status(), currentTimeFormatFileName)
+		log.Info().Msg(fmt.Sprintf("Sent report to NCSC failed. Response status: %s", rsp.Status()))
+	} else {
+		msg.Text = fmt.Sprintf("✅📣 Report successfully submitted to NCSC:\n- Status: %s\n- Logfile: %s\"", rsp.Status(), currentTimeFormatFileName)
+		log.Info().Msg(fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status()))
+	}
+	_, err = c.BotAPI.Send(msg)
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot send message to telegram")
+	}
 	// Generate a filename with the current datetime
 	filenameXML := fmt.Sprintf("./edxml/edxml-%s.xml", currentTimeFormatFileName)
 	// Create the output directory and any necessary parent directories
@@ -393,23 +411,7 @@ func main() {
 		log.Fatal().Err(err).Msg("error saving XML to file")
 	}
 	log.Info().Msg(fmt.Sprintf("XML data written to %s", filenameXML))
-	fmt.Printf("XML data written to %s\n", filenameXML)
 
-	// send message to telegram
-	//tgbotFilePath := tgbotapi.FilePath(filenameLog)
-	//tgbotFile := tgbotapi.NewDocument(config.GroupID, tgbotFilePath)
-	msg := tgbotapi.MessageConfig{}
-	msg.ChatID = config.GroupID
-
-	if rsp.StatusCode() != 200 {
-		//tgbotFile.Caption = fmt.Sprintf("Sent report to NCSC failed. Response status: %s", rsp.Status())
-		msg.Text = fmt.Sprintf("❌📣 Sent report to NCSC failed:\n- Response status: %s\n- Logfile: %s", rsp.Status(), filenameLog)
-		log.Info().Msg(fmt.Sprintf("Sent report to NCSC failed. Response status: %s", rsp.Status()))
-	} else {
-		//tgbotFile.Caption = fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status())
-		msg.Text = fmt.Sprintf("✔️📣 Sent report to NCSC successful:\n- Response status: %s\n- Logfile: %s\"", rsp.Status(), filenameLog)
-		log.Info().Msg(fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status()))
-	}
 	//_, err = c.BotAPI.Send(tgbotFile)
 	_, err = c.BotAPI.Send(msg)
 	if err != nil {
