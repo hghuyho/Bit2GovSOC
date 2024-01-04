@@ -25,14 +25,13 @@ type Resp struct {
 	Msg string
 }
 
-func NewBitClient(mode string, host string, secret string, botToken string) (*Client, error) {
+func NewBitClient(mode string, host string, secret string, botToken string, bitSkipVerify bool) (*Client, error) {
 
 	c := resty.New().
 		SetBaseURL(host).
 		SetHeader("Content-Type", "application/json")
 
 	if mode == "onPremises" {
-		c.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
 		ReportsRoute = "/api/v1.0/jsonrpc/reports/computers"
 		NetworkRoute = "/api/v1.0/jsonrpc/network/computers"
 	} else if mode == "cloud" {
@@ -41,6 +40,10 @@ func NewBitClient(mode string, host string, secret string, botToken string) (*Cl
 	} else {
 		err := errors.New("must declare mode as either onPremises or cloud in config.env")
 		return nil, err
+	}
+
+	if bitSkipVerify {
+		c.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
 	}
 
 	if secret != "" {

@@ -4,6 +4,7 @@ import (
 	"Bit2GovSOC/client"
 	"Bit2GovSOC/report"
 	"Bit2GovSOC/util"
+	"crypto/tls"
 	"encoding/xml"
 	"fmt"
 	"github.com/go-resty/resty/v2"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -180,6 +182,11 @@ type MachineQualityFeature struct {
 	EnableFirewall string `xml:"EnableFirewall"`
 }
 
+const (
+	ToolName    = "Bit2GovSOC"
+	ToolVersion = "v1.8"
+)
+
 func main() {
 	// Prompt user to press Enter to start
 	//fmt.Print("Press Enter to start...")
@@ -223,8 +230,8 @@ func main() {
 		log.Fatal().Msg("TG_BOT_TOKEN is empty")
 	}
 	log.Info().Msg("Configuration successfully loaded.")
-	log.Info().Msg(fmt.Sprintf("Connecting to Bitdefener GravityZone %s", config.Mode))
-	c, err := client.NewBitClient(config.Mode, config.BitEnpoint, config.BitAPIKey, botToken)
+	log.Info().Msg(fmt.Sprintf("Connecting to Bitdefener GravityZone %s", strings.ToUpper(config.Mode)))
+	c, err := client.NewBitClient(config.Mode, config.BitEnpoint, config.BitAPIKey, botToken, config.BitSkipVerify)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot create bitdefender client")
 	}
@@ -308,7 +315,7 @@ func main() {
 			},
 		})
 	}
-	log.Info().Msg("Malware Status Report downloaded and parsed successfully.")
+	log.Info().Msg(fmt.Sprintf("Malware Status Report downloaded and parsed successfully. Malware: %d", len(malwares)))
 
 	// Network Incidents report
 	log.Info().Msg("Downloading and parsing Network Incidents Report...")
@@ -330,7 +337,7 @@ func main() {
 			},
 		})
 	}
-	log.Info().Msg("Network Incidents Report downloaded and parsed successfully.")
+	log.Info().Msg(fmt.Sprintf("Network Incidents Report downloaded and parsed successfully. Connection: %d", len(networks)))
 
 	// Endpoint Modules Status report
 	log.Info().Msg("Downloading and parsing Endpoint Modules Status Report...")
@@ -350,22 +357,12 @@ func main() {
 		})
 
 	}
-	log.Info().Msg("Endpoint Modules Status Report downloaded and parsed successfully.")
+	log.Info().Msg(fmt.Sprintf("Endpoint Modules Status Report downloaded and parsed successfully. QualityFeature: %d", len(endpointModules)))
 
 	// Network Inventory Items
 	log.Info().Msg("Calling and parsing Network Inventory Items (Public API)...")
-
-	parentId, err := c.GetParentId()
-	if err != nil {
-		log.Fatal().Err(err).Msg("cannot get parentId")
-	}
-	if parentId == "" {
-		log.Fatal().Err(err).Msg("empty parentId")
-	}
-	log.Info().Msg(fmt.Sprintf(`ParentID: %s`, parentId))
-	networkInventoryItems, err := c.GetNetworkInventoryItems(1, parentId)
-
-	if len(networks) == 0 {
+	networkInventoryItems, err := c.GetNetworkInventoryItemsWithoutParentId(1)
+	if len(networkInventoryItems.Result.Items) == 0 {
 		log.Warn().Msg("Network Inventory Items are empty.")
 	}
 
@@ -373,7 +370,7 @@ func main() {
 		log.Fatal().Err(err).Msg("cannot get network inventory items")
 	}
 	for i := 1; i <= networkInventoryItems.Result.PagesCount; i++ {
-		networkInventoryItems, err = c.GetNetworkInventoryItems(i, parentId)
+		networkInventoryItems, err = c.GetNetworkInventoryItemsWithoutParentId(i)
 		if err != nil {
 			log.Fatal().Err(err).Msg("cannot get network inventory items")
 		}
@@ -385,8 +382,14 @@ func main() {
 				LastUpdate: endpoint.LastSuccessfulScan.Date,
 			})
 		}
+
 	}
-	log.Info().Msg("Network Inventory Items obtained through Public API and parsed successfully.")
+
+	log.Info().
+		Msg(fmt.Sprintf(
+			`Network Inventory Items obtained through Public API and parsed successfully. OS: %d`,
+			networkInventoryItems.Result.Total),
+		)
 
 	// Encode the struct to XML
 	xmlData, err := xml.MarshalIndent(e, "", "    ")
@@ -415,12 +418,22 @@ func main() {
 	// Submit report to NCSC
 	log.Info().Msg(fmt.Sprintf("Calling to %s", config.GovSOCEnpoint))
 	submitClient := resty.New()
+	if config.NCSCSkipVerify {
+		submitClient.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
+	}
 	rsp, err := submitClient.R().
 		SetHeader("Content-Type", "text/xml").
 		SetBody(xmlData).
 		Post(config.GovSOCEnpoint)
 	if err != nil {
-		msg.Text = fmt.Sprintf("❌📣 Report submission to NCSC failed:\n- Logfile: %s", currentTimeFormatFileName)
+		msg.Text = fmt.Sprintf(
+			"❌📣 Report submission to NCSC failed:\n- Malware: %d\n- Connection: %d\n- OS: %d\n- QualityFeature: %d\n- Tool version: %s\n- Logfile: %s",
+			len(malwares),
+			len(networks),
+			networkInventoryItems.Result.Total,
+			len(endpointModules),
+			ToolName+"-"+ToolVersion+"-"+config.Mode,
+			currentTimeFormatFileName)
 		_, err = c.BotAPI.Send(msg)
 		if err != nil {
 			log.Fatal().Err(err).Msg("cannot send message to telegram")
@@ -429,10 +442,24 @@ func main() {
 	}
 
 	if rsp.StatusCode() != 200 {
-		msg.Text = fmt.Sprintf("❌📣 Report submission to NCSC failed:\n- Status: %s\n- Logfile: %s", rsp.Status(), currentTimeFormatFileName)
+		msg.Text = fmt.Sprintf("❌📣 Report submission to NCSC failed:\n- Status: %s\n- Malware: %d\n- Connection: %d\n- OS: %d\n- QualityFeature: %d\n- Tool version: %s\n- Logfile: %s",
+			rsp.Status(),
+			len(malwares),
+			len(networks),
+			networkInventoryItems.Result.Total,
+			len(endpointModules),
+			ToolName+"-"+ToolVersion+"-"+config.Mode,
+			currentTimeFormatFileName)
 		log.Info().Msg(fmt.Sprintf("Sent report to NCSC failed. Response status: %s", rsp.Status()))
 	} else {
-		msg.Text = fmt.Sprintf("✅📣 Report successfully submitted to NCSC:\n- Status: %s\n- Logfile: %s\"", rsp.Status(), currentTimeFormatFileName)
+		msg.Text = fmt.Sprintf("✅📣 Report successfully submitted to NCSC:\n- Status: %s\n- Malware: %d\n- Connection: %d\n- OS: %d\n- QualityFeature: %d\n- Tool version: %s\n- Logfile: %s",
+			rsp.Status(),
+			len(malwares),
+			len(networks),
+			networkInventoryItems.Result.Total,
+			len(endpointModules),
+			ToolName+"-"+ToolVersion+"-"+config.Mode,
+			currentTimeFormatFileName)
 		log.Info().Msg(fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status()))
 	}
 	_, err = c.BotAPI.Send(msg)
