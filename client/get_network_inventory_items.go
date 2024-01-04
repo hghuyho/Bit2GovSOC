@@ -61,9 +61,21 @@ type NetworkInventoryItems struct {
 	} `json:"result"`
 }
 
-func (c *Client) GetNetworkInventoryItems(i int) (*NetworkInventoryItems, error) {
+func (c *Client) GetParentId() (string, error) {
 	errMsg := "get reports list failed: : %w"
-	requestBody := fmt.Sprintf(`{ "params": {"parentId": "6540bf7343bb167ed901da52", "page": %d, "perPage": 100, "filters": {"type": { "computers": true},"depth": {"allItemsRecursively": true}},"options": {"companies": { "returnAllProducts": true},"endpoints": { "returnProductOutdated": true, "includeScanLogs": true }}}, "jsonrpc": "2.0", "method": "getNetworkInventoryItems","id": "301f7b05-ec02-481b-9ed6-c07b97de2b7b"}`, i)
+	requestBody := `{"params": {},"jsonrpc": "2.0","method": "getNetworkInventoryItems","id": "301f7b05-ec02-481b-9ed6-c07b97de2b7b"}`
+	res, err := c.R().SetBody(requestBody).
+		SetResult(&NetworkInventoryItems{}).
+		Post(NetworkRoute)
+	if err != nil {
+		return "", fmt.Errorf(errMsg, err)
+	}
+	return res.Result().(*NetworkInventoryItems).Result.Items[0].ParentID, nil
+}
+
+func (c *Client) GetNetworkInventoryItems(i int, parentId string) (*NetworkInventoryItems, error) {
+	errMsg := "get reports list failed: : %w"
+	requestBody := fmt.Sprintf(`{ "params": {"parentId": "%s", "page": %d, "perPage": 100, "filters": {"type": { "computers": true},"depth": {"allItemsRecursively": true}},"options": {"companies": { "returnAllProducts": true},"endpoints": { "returnProductOutdated": true, "includeScanLogs": true }}}, "jsonrpc": "2.0", "method": "getNetworkInventoryItems","id": "301f7b05-ec02-481b-9ed6-c07b97de2b7b"}`, parentId, i)
 
 	res, err := c.R().SetBody(requestBody).
 		SetResult(&NetworkInventoryItems{}).

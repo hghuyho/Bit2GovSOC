@@ -218,13 +218,16 @@ func main() {
 		log.Fatal().Err(err).Msg("cannot load config")
 	}
 	// Override value from an Environment Variable. Set your own!
-	config.BotToken = os.Getenv("TG_BOT_TOKEN")
+	botToken := os.Getenv("TG_BOT_TOKEN")
+	if botToken == "" {
+		log.Fatal().Msg("TG_BOT_TOKEN is empty")
+	}
 	log.Info().Msg("Configuration successfully loaded.")
-	c, err := client.NewBitClient(config.BitEnpoint, config.BitAPIKey, config.BotToken)
+	log.Info().Msg(fmt.Sprintf("Connecting to Bitdefener GravityZone %s", config.Mode))
+	c, err := client.NewBitClient(config.Mode, config.BitEnpoint, config.BitAPIKey, botToken)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot create bitdefender client")
 	}
-
 	//Create an instance of EDXMLEnvelope
 	e := EdXMLEnvelope{
 		XMLNS: "http://www.mic.gov.vn/TBT/QCVN_102_2016",
@@ -290,6 +293,9 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot parsing malware")
 	}
+	if len(malwares) == 0 {
+		log.Warn().Msg("Malware Status Report is empty.")
+	}
 	for _, malware := range malwares {
 		e.EdXMLBody.AVReport.Malware.MachineMalware = append(e.EdXMLBody.AVReport.Malware.MachineMalware, MachineMalware{
 			Name: malware.EndpointName,
@@ -310,6 +316,10 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot parsing network")
 	}
+	if len(networks) == 0 {
+		log.Warn().Msg("Network Incidents Report is empty.")
+	}
+
 	for _, network := range networks {
 		e.EdXMLBody.AVReport.Connection.MachineConnection = append(e.EdXMLBody.AVReport.Connection.MachineConnection, MachineConnection{
 			Name: network.EndpointName,
@@ -328,6 +338,9 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot parsing endpoint modules status report")
 	}
+	if len(endpointModules) == 0 {
+		log.Warn().Msg("Endpoint Modules Status Report is empty.")
+	}
 	for _, endpoint := range endpointModules {
 		e.EdXMLBody.AVReport.QualityFeature.MachineQualityFeature = append(e.EdXMLBody.AVReport.QualityFeature.MachineQualityFeature, MachineQualityFeature{
 			Name:           endpoint.EndpointName,
@@ -341,12 +354,26 @@ func main() {
 
 	// Network Inventory Items
 	log.Info().Msg("Calling and parsing Network Inventory Items (Public API)...")
-	networkInventoryItems, err := c.GetNetworkInventoryItems(1)
+
+	parentId, err := c.GetParentId()
+	if err != nil {
+		log.Fatal().Err(err).Msg("cannot get parentId")
+	}
+	if parentId == "" {
+		log.Fatal().Err(err).Msg("empty parentId")
+	}
+	log.Info().Msg(fmt.Sprintf(`ParentID: %s`, parentId))
+	networkInventoryItems, err := c.GetNetworkInventoryItems(1, parentId)
+
+	if len(networks) == 0 {
+		log.Warn().Msg("Network Inventory Items are empty.")
+	}
+
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot get network inventory items")
 	}
 	for i := 1; i <= networkInventoryItems.Result.PagesCount; i++ {
-		networkInventoryItems, err = c.GetNetworkInventoryItems(i)
+		networkInventoryItems, err = c.GetNetworkInventoryItems(i, parentId)
 		if err != nil {
 			log.Fatal().Err(err).Msg("cannot get network inventory items")
 		}
@@ -366,6 +393,20 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("error encoding to XML")
 	}
+
+	// Generate a filename with the current datetime
+	filenameXML := fmt.Sprintf("./edxml/edxml-%s.xml", currentTimeFormatFileName)
+	// Create the output directory and any necessary parent directories
+	outputDirXML := filepath.Dir(filenameXML)
+	if err := os.MkdirAll(outputDirXML, 0755); err != nil {
+		log.Fatal().Err(err).Msg("error creating output directory")
+	}
+	// Save the XML data to a file
+	err = os.WriteFile(filenameXML, xmlData, 0644)
+	if err != nil {
+		log.Fatal().Err(err).Msg("error saving XML to file")
+	}
+	log.Info().Msg(fmt.Sprintf("XML data written to %s", filenameXML))
 
 	// send message to telegram
 	msg := tgbotapi.MessageConfig{}
@@ -394,25 +435,6 @@ func main() {
 		msg.Text = fmt.Sprintf("✅📣 Report successfully submitted to NCSC:\n- Status: %s\n- Logfile: %s\"", rsp.Status(), currentTimeFormatFileName)
 		log.Info().Msg(fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status()))
 	}
-	_, err = c.BotAPI.Send(msg)
-	if err != nil {
-		log.Fatal().Err(err).Msg("cannot send message to telegram")
-	}
-	// Generate a filename with the current datetime
-	filenameXML := fmt.Sprintf("./edxml/edxml-%s.xml", currentTimeFormatFileName)
-	// Create the output directory and any necessary parent directories
-	outputDirXML := filepath.Dir(filenameXML)
-	if err := os.MkdirAll(outputDirXML, 0755); err != nil {
-		log.Fatal().Err(err).Msg("error creating output directory")
-	}
-	// Save the XML data to a file
-	err = os.WriteFile(filenameXML, xmlData, 0644)
-	if err != nil {
-		log.Fatal().Err(err).Msg("error saving XML to file")
-	}
-	log.Info().Msg(fmt.Sprintf("XML data written to %s", filenameXML))
-
-	//_, err = c.BotAPI.Send(tgbotFile)
 	_, err = c.BotAPI.Send(msg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot send message to telegram")
