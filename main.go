@@ -218,6 +218,8 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot load config")
 	}
+	// Override value from an Environment Variable. Set your own!
+	config.BotToken = os.Getenv("TG_BOT_TOKEN")
 	log.Info().Msg("Load config successfully")
 	c, err := client.NewBitClient(config.BitEnpoint, config.BitAPIKey, config.BotToken)
 	if err != nil {
