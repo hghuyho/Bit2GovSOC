@@ -4,8 +4,18 @@ This tool connects and shares Bitdefender GravityZone Control Center reports in 
 Decree guide: 2290/BTTTT-CATTT.
 
 ## Installation and Setup
-### 1. Configuration
-Setup your configuration as a local `conf.env` file with the following information:
+### 1. Set Environment
+#### Windows:
+    $env:TG_BOT_TOKEN = "your_telegram_bot_token"
+### 2. Build
+#### Windows:
+    go build -ldflags "-X main.botToken=%TG_BOT_TOKEN%" -o Bit2GovSOC-v1.7.exe .\main.go`
+## Usage
+The tool will connect to Bitdefender GravityZone Control Center, retrieve reports in edXML format, and share them with the VNCSC.
+
+![img.png](img.png)
+
+Setup your configuration using a local `conf.env` file in the same directory of your tool.
 
     MODE=cloud
     ORGANID=000.00.00.XXX
@@ -21,19 +31,7 @@ Setup your configuration as a local `conf.env` file with the following informati
     GOVSOC_ENPOINT=https://mis.ais.gov.vn/AVReport/server.php
     TG_GROUP_ID=your_telegram_group_id
 
-### 2. Set Environment
-Windows:
 
-    $env:TG_BOT_TOKEN = "your_telegram_bot_token"
-### 3. Build
-Windows:
-
-    go build -ldflags "-X main.botToken=%TG_BOT_TOKEN%" -o Bit2GovSOC-v1.7.exe .\main.go`
-
-## Usage
-The tool will connect to Bitdefender GravityZone Control Center, retrieve reports in edXML format, and share them with the VNCSC.
-
-![img.png](img.png)
 Directories created:
 - /log: Log files for debugging and monitoring. 
 - /temp: Temporary storage for intermediary files.
