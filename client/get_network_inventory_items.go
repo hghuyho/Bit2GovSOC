@@ -89,7 +89,7 @@ func (c *Client) GetNetworkInventoryItems(i int, parentId string) (*NetworkInven
 
 func (c *Client) GetNetworkInventoryItemsWithoutParentId(i int) (*NetworkInventoryItems, error) {
 	errMsg := "get network inventory items without parentId failed: : %w"
-	requestBody := fmt.Sprintf(`{ "params": {"page": %d, "perPage": 100, "filters": {"type": { "computers": true},"depth": {"allItemsRecursively": true}}}, "jsonrpc": "2.0", "method": "getNetworkInventoryItems","id": "tracking"}`, i)
+	requestBody := fmt.Sprintf(`{ "params": {"page": %d, "perPage": 100, "filters": {"type": { "computers": true, "virtualMachines": true},"depth": {"allItemsRecursively": true}}}, "jsonrpc": "2.0", "method": "getNetworkInventoryItems","id": "tracking"}`, i)
 
 	res, err := c.R().SetBody(requestBody).
 		SetResult(&NetworkInventoryItems{}).

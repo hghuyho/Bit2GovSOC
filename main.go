@@ -184,7 +184,7 @@ type MachineQualityFeature struct {
 
 const (
 	ToolName    = "Bit2GovSOC"
-	ToolVersion = "v1.8"
+	ToolVersion = "v1.8.3"
 )
 
 func main() {
@@ -224,14 +224,9 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot load config")
 	}
-	// Override value from an Environment Variable. Set your own!
-	botToken := os.Getenv("TG_BOT_TOKEN")
-	if botToken == "" {
-		log.Fatal().Msg("TG_BOT_TOKEN is empty")
-	}
 	log.Info().Msg("Configuration successfully loaded.")
 	log.Info().Msg(fmt.Sprintf("Connecting to Bitdefener GravityZone %s", strings.ToUpper(config.Mode)))
-	c, err := client.NewBitClient(config.Mode, config.BitEnpoint, config.BitAPIKey, botToken, config.BitSkipVerify)
+	c, err := client.NewBitClient(config.Mode, config.BitEnpoint, config.BitAPIKey, config.BotToken, config.BitSkipVerify)
 	if err != nil {
 		log.Fatal().Err(err).Msg("cannot create bitdefender client")
 	}
@@ -427,11 +422,10 @@ func main() {
 		Post(config.GovSOCEnpoint)
 	if err != nil {
 		msg.Text = fmt.Sprintf(
-			"❌📣 Report submission to NCSC failed:\n- Malware: %d\n- Connection: %d\n- OS: %d\n- QualityFeature: %d\n- Tool version: %s\n- Logfile: %s",
+			"❌📣 Report submission to NCSC failed:\n- Malware: %d\n- Connection: %d\n- OS: %d\n- Tool version: %s\n- Logfile: %s",
 			len(malwares),
 			len(networks),
 			networkInventoryItems.Result.Total,
-			len(endpointModules),
 			ToolName+"-"+ToolVersion+"-"+config.Mode,
 			currentTimeFormatFileName)
 		_, err = c.BotAPI.Send(msg)
@@ -442,22 +436,20 @@ func main() {
 	}
 
 	if rsp.StatusCode() != 200 {
-		msg.Text = fmt.Sprintf("❌📣 Report submission to NCSC failed:\n- Status: %s\n- Malware: %d\n- Connection: %d\n- OS: %d\n- QualityFeature: %d\n- Tool version: %s\n- Logfile: %s",
+		msg.Text = fmt.Sprintf("❌📣 Report submission to NCSC failed:\n- Status: %s\n- Malware: %d\n- Connection: %d\n- OS: %d\n- Tool version: %s\n- Logfile: %s",
 			rsp.Status(),
 			len(malwares),
 			len(networks),
 			networkInventoryItems.Result.Total,
-			len(endpointModules),
 			ToolName+"-"+ToolVersion+"-"+config.Mode,
 			currentTimeFormatFileName)
 		log.Info().Msg(fmt.Sprintf("Sent report to NCSC failed. Response status: %s", rsp.Status()))
 	} else {
-		msg.Text = fmt.Sprintf("✅📣 Report successfully submitted to NCSC:\n- Status: %s\n- Malware: %d\n- Connection: %d\n- OS: %d\n- QualityFeature: %d\n- Tool version: %s\n- Logfile: %s",
+		msg.Text = fmt.Sprintf("✅📣 Report successfully submitted to NCSC:\n- Status: %s\n- Malware: %d\n- Connection: %d\n- OS: %d\n- Tool version: %s\n- Logfile: %s",
 			rsp.Status(),
 			len(malwares),
 			len(networks),
 			networkInventoryItems.Result.Total,
-			len(endpointModules),
 			ToolName+"-"+ToolVersion+"-"+config.Mode,
 			currentTimeFormatFileName)
 		log.Info().Msg(fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status()))

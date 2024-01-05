@@ -11,6 +11,7 @@ type Config struct {
 	BitEnpoint     string `mapstructure:"BIT_ENPOINT"`
 	BitAPIKey      string `mapstructure:"BIT_APIKEY"`
 	GovSOCEnpoint  string `mapstructure:"GOVSOC_ENPOINT"`
+	BotToken       string `mapstructure:"TG_BOT_TOKEN"`
 	GroupID        int64  `mapstructure:"TG_GROUP_ID"`
 	OrganId        string `mapstructure:"ORGANID"`
 	OrganName      string `mapstructure:"ORGANNAME"`
