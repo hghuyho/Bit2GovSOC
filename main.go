@@ -32,7 +32,7 @@ type EdXMLHeader struct {
 
 type MessageHeader struct {
 	From    From   `xml:"edXML:From"`
-	Subject string `xml:"Subject"`
+	Subject string `xml:"edXML:Subject"`
 }
 
 type From struct {
