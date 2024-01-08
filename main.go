@@ -138,7 +138,7 @@ type MachineConnection struct {
 
 type ConnectionInfo struct {
 	Program  string `xml:"Program"`
-	MD5      string `xml:"md5"`
+	MD5      string `xml:"Md5"`
 	Sha2     string `xml:"Sha2"`
 	TargetIP string `xml:"TargetIP"`
 }
@@ -184,7 +184,7 @@ type MachineQualityFeature struct {
 
 const (
 	ToolName    = "Bit2GovSOC"
-	ToolVersion = "v1.8.3"
+	ToolVersion = "v1.8.4"
 )
 
 func main() {
@@ -288,6 +288,8 @@ func main() {
 		Name:     "Bitdefender",
 		Datetime: strconv.FormatInt(time.Now().Unix(), 10),
 	}
+
+	e.EdXMLBody.AVReport.Update.NumberMachineNotUpdateOn15Day = strconv.Itoa(0)
 
 	// Malware Status report
 	log.Info().Msg("Downloading and parsing Malware Status Report...")
@@ -452,7 +454,7 @@ func main() {
 			networkInventoryItems.Result.Total,
 			ToolName+"-"+ToolVersion+"-"+config.Mode,
 			currentTimeFormatFileName)
-		log.Info().Msg(fmt.Sprintf("Sent report to NCSC successful. Response status: %s", rsp.Status()))
+		log.Info().Msg(fmt.Sprintf("Sent report to NCSC successful. Response status: %s. Response body %s", rsp.Status(), string(rsp.Body())))
 	}
 	_, err = c.BotAPI.Send(msg)
 	if err != nil {
